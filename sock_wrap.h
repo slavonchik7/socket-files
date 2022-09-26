@@ -27,7 +27,15 @@ void Connect(int fd, const struct sockaddr *sa, socklen_t salen);
 
 int Socket(int domain, int type, int protocol);
 
+void Listen(int fd, int backlog);
 
+void Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen);
 
+void Getsockopt(int fd, int level, int optname, void *optval, socklen_t *optlenptr);
+
+ssize_t Recv(int fd, void *ptr, size_t nbytes, int flags);
 
 #endif /* SOCK_WRAP_H */
+
+
+// https://github.com/unpbook/unpv13e.git
