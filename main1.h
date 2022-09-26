@@ -15,8 +15,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 
+
+#include "../wrap_fork.h"
+#include "signal.h"
 #include "sock_wrap.h"
+
 
 #define SERV_ADDR "127.0.0.1"
 #define SERV_PORT 2000
@@ -25,8 +31,17 @@
 void str_echo(int fd) {
 
 
+}
+
+void sig_chld(int sign) {
+    pid_t pid;
+    int stat;
 
 
+    while ( (pid = waitpid(-1, &stat, WNOHANG)) > 0 )
+        printf("child (%d) terminated\n", pid);
+
+    return;
 }
 
 int main1() {
@@ -43,7 +58,7 @@ int main1() {
 //    fflush(stdout);
     listenfd = Socket(AF_INET, SOCK_STREAM, 0);
 
-//
+
 //    flags = fcntl(confd, F_GETFL, 0);
 //    imode = 1;
 //    fcntl(confd, F_SETFL, flags | O_NONBLOCK);
@@ -58,19 +73,54 @@ int main1() {
     printf("listen...\n");
 
 
+    Sigact(SIGCHLD, sig_chld);
 
-    listen(listenfd, 1);
+    Listen(listenfd, 1);
+
     printf("sleep...\n");
-    sleep(5);
+    sleep(1);
     printf("wake up...\n");
 
-    confd = Accept(listenfd, (struct sockaddr *)&servaddr, &skl);
 
 
-    if ( recv(confd, buff, BUFSIZ, 0) < 0 )
-        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
 
-    printf("msg: %s\n", buff);
+//    for(int  i = 0; i < 5; i++) {
+//        pid_t p_id;
+//        if ( (p_id = fork()) == 0 ) {
+//
+//            printf("child id...%d\n", getpid());
+//
+//            exit(0); /* exit child proc */
+//        }
+//    }
+//    close(listenfd);
+
+    for (;;) {
+        skl = sizeof(cliaddr);
+
+        //confd = Accept(listenfd, (struct sockaddr *)&servaddr, &skl);
+        if ( (confd = accept(listenfd, (struct sockaddr *)&servaddr, &skl)) < 0 ) {
+            if ( errno == EINTR )
+                continue;
+            else
+                EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+        }
+
+        PROC_CHILD(chldpid)
+            close(listenfd);
+            printf("recieve client...\n");
+            Recv(confd, buff, BUFSIZ, 0);
+            printf("msg: %s\n", buff);
+            exit(0); /* exit child proc */
+        PROC_PARENT(chldpid)
+            close(confd);
+        PROC_END
+
+    }
+
+
+
+//    printf("msg: %s\n", buff);
 
     close(confd);
     close(listenfd);
