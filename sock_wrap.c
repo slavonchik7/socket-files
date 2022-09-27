@@ -417,7 +417,10 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
 
         if ( status > 0 )
             if ( FD_ISSET(fd, &rdset) )
-                nread = read(fd, buf, nbytes);
+                if ( (nread = read(fd, buf, nbytes)) < 0)
+		    continue;
+	        else
+		    return break;
             else
                 continue;
         else if ( status == 0 )
