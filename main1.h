@@ -95,6 +95,10 @@ int main1() {
 //    }
 //    close(listenfd);
 
+
+// gcc main.c msgee.c sock_wrap.c signal.c -o serv
+// gcc client.c msgee.c sock_wrap.c signal.c -o client
+
     for (;;) {
         skl = sizeof(cliaddr);
 
@@ -109,8 +113,12 @@ int main1() {
         PROC_CHILD(chldpid)
             close(listenfd);
             printf("recieve client...\n");
-            Recv(confd, buff, BUFSIZ, 0);
-            printf("msg: %s\n", buff);
+            read(confd, buff, BUFSIZ);
+//            if ( read_time(confd, buff, BUFSIZ, 3, 1000) < 0 )
+//                printf("time out wait read FD\n");
+//            else
+                printf("msg: %s\n", buff);
+
             exit(0); /* exit child proc */
         PROC_PARENT(chldpid)
             close(confd);

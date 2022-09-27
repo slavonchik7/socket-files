@@ -3,16 +3,17 @@
 
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <error.h>
-#include <netinet/in.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
-
+#include <netinet/tcp.h>
 
 #include "sock_wrap.h"
 #include "../wrap_fork.h"
@@ -22,7 +23,7 @@
 #define SERV_ADDR "127.0.0.1"
 #define SERV_PORT 2000
 
-
+    struct sockaddr_in servaddr;
 
 void pipe_handler() {
 
@@ -31,33 +32,66 @@ void pipe_handler() {
 
 }
 
+#define NOPIPE
+#define WRTIME
+
 void cli_str(int clifd) {
 
     char buf[BUFSIZ];
-
-    Sigact(SIGPIPE, pipe_handler);
+//
+//    Sigact(SIGPIPE, pipe_handler);
 
     while ( fgets(buf, BUFSIZ, stdin) != NULL ) {
 
-        if ( write(clifd, buf, BUFSIZ) < 0 ) {
+        printf("buff: %s\n", buf);
+        if (
+#ifdef NOPIPE
+        Write_nopipe
+//#elif WRTIME
+//        Write_time
+#else
+        write
+#endif // NOPIPE
+        (clifd, buf, BUFSIZ) < 0 ) {
             if (errno == EPIPE)
                 printf("EPIP FIRST write\n");
             fprintf(stderr, "error write %s\n", strerror(errno));
-        }
+            if ( connect_time(clifd, (struct sockaddr *)&servaddr,
+                    sizeof(servaddr), 3, 1000) < 0)
+            printf("error connect_time() %d\n", errno);
 
-        sleep(1);
-
-        if ( write(clifd, buf, BUFSIZ) < 0 ) {
-            if (errno == EPIPE)
-                printf("EPIP SECOND write\n");
-            fprintf(stderr,"error write %s\n", strerror(errno));
-        }
-
-        if ( read(clifd, buf, BUFSIZ) < 0 ) {
-            fprintf(stderr,"error write %s\n", strerror(errno));
         } else {
-            fprintf(stderr,"%s\n", buf);
+            printf("send\n");
         }
+
+//        if ( Write_time(clifd, buf, BUFSIZ, 3, 1000) < 0 ) {
+//            if (errno == EPIPE)
+//                printf("EPIP FIRST write\n");
+//            fprintf(stderr, "error write %s\n", strerror(errno));
+//        } else {
+//            printf("send\n");
+//        }
+
+
+//        sleep(1);
+//
+//        if (
+//#if 0
+//        write_nopipe
+//#else
+//        write
+//    #endif // NOPIPE
+//        (clifd, NULL, 0) < 0 ) {
+//            if (errno == EPIPE)
+//                printf("EPIP SECOND write\n");
+//            fprintf(stderr,"error write %s\n", strerror(errno));
+//        }
+
+//        if ( read(clifd, buf, BUFSIZ) < 0 ) {
+//            fprintf(stderr,"error write %s\n", strerror(errno));
+//        } else {
+//            fprintf(stderr,"%s\n", buf);
+//        }
     }
 
 }
@@ -66,8 +100,9 @@ int main() {
 
     int confd;
 
-    struct sockaddr_in servaddr;
+
     int optval;
+    socklen_t optlen;
     socklen_t skl = sizeof(servaddr);
     int flags;
     int imode;
@@ -76,7 +111,27 @@ int main() {
 //    fflush(stdout);
     confd = Socket(AF_INET, SOCK_STREAM, 0);
 
-#if 0
+    getsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen);
+    printf("SO_KEEPALIVE: %d\n", optval);
+
+    optval = 1;
+    /* first check tcp connect */
+    int keepval = 1;
+    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+
+    /* second check tcp connect */
+    keepval = 1;
+    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+
+    /* second check tcp connect */
+    keepval = 1;
+    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+
+    setsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
+    printf("SO_KEEPALIVE: %d\n", optval);
+
+
+#if 1
     printf("%d\n", EFAULT);
     printf("%d\n", EINPROGRESS);
     printf("%d\n", EINTR);
@@ -90,6 +145,7 @@ int main() {
     printf("%d\n", EISCONN);
     printf("%d\n", ETIMEDOUT);
     printf("%d\n", ECONNREFUSED);
+    printf("%d\n", EPIPE);
 #endif
 
 //    flags = fcntl(confd, F_GETFL, 0);
