@@ -7,6 +7,10 @@
 
 
 int Accept(int fd, struct sockaddr *addr, socklen_t *addr_len) {
+    assert(fd);
+    assert(addr);
+    assert(addr_len);
+
     int sock;
 
 again:
@@ -27,12 +31,16 @@ again:
 
 
 int Accept_time(int fd, struct sockaddr *addr, socklen_t *addr_len, int tnum, double msec) {
+    assert(fd);
+    assert(addr);
+    assert(addr_len);
+    assert(tnum >= 0);
+    assert(msec >= 0);
+
     struct timespec acpt_per;
     struct timespec *tmptr = &acpt_per;
     int sock;
 
-    assert(tnum >= 0);
-    assert(msec >= 0);
 
     MSEC_TO_SPEC(msec, tmptr);
 
@@ -68,52 +76,112 @@ again:
 }
 
 void Bind(int fd, const struct sockaddr *sa, socklen_t salen) {
+    assert(fd >= 0);
+    assert(sa);
+
 	if ( bind(fd, sa, salen) < 0 )
         EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
 }
 
 
-int resocket(int fd) {
-    int sfd;
+int resocket(int oldfd, int domain, int type, int protocol) {
     int fdflags;
 
 
-    if ( (fdflags = fcntl(fd, F_GETFL, 0)) < 0 )
+    if ( (fdflags = fcntl(oldfd, F_GETFL, 0)) < 0 )
         return -1;
 
-    if ( shutdown(sfd, SHUT_RDWR) < 0 )
-        if ( close(sfd) < 0)
+
+    if ( shutdown(oldfd, SHUT_RDWR) < 0 )
+        /* if the socket uses udp packets or for another reason */
+        if ( close(oldfd) < 0 )
             return -1;
 
-    if ( (sfd = socket(saddr->sin_family, SOCK_STREAM, 0)) < 0 ) {
-        *fd = sfd;
+    if ( (oldfd = socket(domain, type, protocol)) < 0 )
+        return -1;
+
+    if ( (fcntl(oldfd, F_SETFL, &fdflags)) < 0 ) {
+        close(oldfd);
         return -1;
     }
 
-    if ( (fcntl(fd, F_SETFL, &fdflags)) < 0 ) {
-        close(sfd);
-        return -1;
-    }
+    return oldfd;
 }
+
+int Resocket(int oldfd, int domain, int type, int protocol) {
+    assert(oldfd >= 0);
+
+    int newfd;
+
+    if ( (newfd = resocket(oldfd, domain, type, protocol)) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+
+    return newfd;
+}
+
 
 int reconnect(int *fd, const struct sockaddr *sa, socklen_t salen) {
     int sfd = *fd;
     struct sockaddr_in *saddr = (struct sockaddr_in *)sa;
 
 
+    if ( (sfd = resocket(sfd, sa->sa_family, SOCK_STREAM, 0)) < 0)
+        return -1;
 
-
-    if ( connect(fd, sa, ) salen) < 0 ) {
+    if ( connect(sfd, sa, salen) < 0 ) {
         close(sfd);
         return -1;
     }
 
+    *fd = sfd;
+
     return 0;
 }
 
-int reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
+void Reconnect(int *fd, const struct sockaddr *sa, socklen_t salen) {
+    assert(fd);
+    assert(*fd >= 0);
+    assert(sa);
 
-int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
+    if ( reconnect(fd, sa, salen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+}
+
+
+int reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec) {
+    int sfd = *fd;
+    struct sockaddr_in *saddr = (struct sockaddr_in *)sa;
+
+
+    if ( (sfd = resocket(sfd, sa->sa_family, SOCK_STREAM, 0)) < 0)
+        return -1;
+
+    if ( connect_time(sfd, sa, salen, tnum, msec) < 0 ) {
+        close(sfd);
+        return -1;
+    }
+
+    *fd = sfd;
+}
+
+void Reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec) {
+    assert(fd);
+    assert(*fd >= 0);
+    assert(tnum >= 0);
+    assert(msec >= 0);
+
+    if ( reconnect_time(fd, sa, salen, tnum, msec) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+}
+
+void Connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec) {
+    assert(fd >= 0);
+    assert(tnum >= 0);
+    assert(msec >= 0);
+
+    if ( connect_time(fd, sa, salen, tnum, msec) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+}
 
 
 int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec) {
@@ -121,33 +189,28 @@ int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, d
     struct timespec *tmptr = &acpt_per;
     fd_set wrset;
     int fdflags;
-    ssize_t nread = -1;
-    int conn;
+    int stat = 0;
 
     MSEC_TO_SPEC(msec, tmptr);
 
     FD_ZERO(&wrset);
     FD_SET(fd, &wrset);
 
-//    close(fd);
-//    if ( shutdown(fd, SHUT_RDWR) < 0
-
-//    shutdown(fd, SHUT_RD);
-
 
     fdflags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, fdflags | O_NONBLOCK);
+    if ( fcntl(fd, F_SETFL, fdflags | O_NONBLOCK) < 0 )
+        return -1;
 
 
     while ( tnum-- ) {
 
-        if ( connect(fd, sa, salen) < 0 ) {
-            if ( pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL) >= 0)
+        if ( (stat = connect(fd, sa, salen)) < 0 ) {
+            if ( pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL) >= 0 )
                 continue;
             else
-                return -1;
+                goto func_end;
         } else
-            return 0;
+            goto func_end;
 
     #if 0
         printf("wait SELECT\n");
@@ -175,20 +238,26 @@ int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, d
     }
 
 
-    /* an unforeseen event */
-    return -1;
+func_end:
+
+    if ( fcntl(fd, F_SETFL, fdflags) < 0)
+        return -1;
+
+
+    return stat;
 }
 
 
 void Shutdown(int socket, int how) {
+    assert(socket >= 0);
+
     if ( shutdown(socket, how) < 0 )
         EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
 }
 
 void Connect(int fd, const struct sockaddr *sa, socklen_t salen) {
-
+    assert(fd >= 0);
     assert(sa);
-    assert(salen > 0);
 
 	if ( connect(fd, sa, salen) < 0 ) {
         /* connect() error */
@@ -283,6 +352,7 @@ void Getsockopt(int fd, int level, int optname, void *optval, socklen_t *optlenp
 
 
 void Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen) {
+    assert(fd >= 0);
 
 	if ( setsockopt(fd, level, optname, optval, optlen) < 0 )
 		EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
@@ -302,6 +372,7 @@ int Socket(int domain, int type, int protocol) {
 
 ssize_t Recv(int fd, void *ptr, size_t nbytes, int flags) {
 	assert(ptr);
+	assert(fd >= 0);
 	assert(flags >= 0);
 
 	ssize_t n;
@@ -368,6 +439,8 @@ ssize_t write_nopipe(int fd, const void *buf , size_t n) {
 }
 
 ssize_t Write_nopipe(int fd, const void *buf , size_t n) {
+    assert(fd >= 0);
+
     ssize_t nwrite;
 
     if ( (nwrite = write_nopipe(fd, buf, n)) < 0 )
@@ -380,6 +453,8 @@ ssize_t Write_nopipe(int fd, const void *buf , size_t n) {
 }
 
 ssize_t Write(int fd, const void *buf , size_t n) {
+    assert(fd >= 0);
+
     ssize_t nwrite;
 
     if ( (nwrite = write(fd, buf, n)) < 0 )
@@ -389,6 +464,8 @@ ssize_t Write(int fd, const void *buf , size_t n) {
 }
 
 ssize_t Read(int fd, void *buf , size_t nbytes) {
+    assert(fd >= 0);
+
     ssize_t nread;
 
     if ( (nread = read(fd, buf, nbytes)) < 0 )
@@ -403,7 +480,6 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
     struct timespec acpt_per;
     struct timespec *tmptr = &acpt_per;
     fd_set rdset;
-    ssize_t nread = -1;
 
     MSEC_TO_SPEC(msec, tmptr);
 
@@ -417,23 +493,21 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
 
         if ( status > 0 )
             if ( FD_ISSET(fd, &rdset) )
-                if ( (nread = read(fd, buf, nbytes)) < 0)
-		    continue;
-	        else
-		    return break;
+                return read(fd, buf, nbytes);
             else
                 continue;
         else if ( status == 0 )
             continue;
         else
-            break;
+            status;
     }
 
-    return nread;
+    return -1;
 }
 
 
 ssize_t Read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
+    assert(fd >= 0);
     assert(tnum >= 0);
     assert(msec >= 0);
 
@@ -450,7 +524,6 @@ ssize_t write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
     struct timespec acpt_per;
     struct timespec *tmptr = &acpt_per;
     fd_set wrset;
-    ssize_t nwrite = -1;
 
     MSEC_TO_SPEC(msec, tmptr);
 
@@ -459,25 +532,26 @@ ssize_t write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
 
     while ( tnum-- ) {
 
-        /* we are waiting until the socket is ready to read */
+        /* we are waiting until the socket is ready to write */
         int status = pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL);
 
         if ( status > 0 )
             if ( FD_ISSET(fd, &wrset) )
-                nwrite = write(fd, buf, n);
+                return write(fd, buf, n);
             else
                 continue;
         else if ( status == 0 )
             continue;
         else
-            return status;
+            return status; /* -1 */
     }
 
-    return nwrite;
+    return -1;
 }
 
 
 ssize_t Write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
+    assert(fd >= 0);
     assert(tnum >= 0);
     assert(msec >= 0);
 

@@ -34,11 +34,19 @@ void Connect(int fd, const struct sockaddr *sa, socklen_t salen);
 
 int reconnect(int *fd, const struct sockaddr *sa, socklen_t salen);
 
+void Reconnect(int *fd, const struct sockaddr *sa, socklen_t salen);
+
 int reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
+
+void Reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
 
 int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
 
-int resocket(int fd);
+void Connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec);
+
+int resocket(int oldfd, int domain, int type, int protocol);
+
+int Resocket(int oldfd, int domain, int type, int protocol);
 
 
 int Socket(int domain, int type, int protocol);
