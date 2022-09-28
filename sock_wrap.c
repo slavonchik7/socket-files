@@ -91,7 +91,6 @@ int resocket(int oldfd, int domain, int type, int protocol) {
     if ( (fdflags = fcntl(oldfd, F_GETFL, 0)) < 0 )
         return -1;
 
-
     if ( shutdown(oldfd, SHUT_RDWR) < 0 )
         /* if the socket uses udp packets or for another reason */
         if ( close(oldfd) < 0 )
@@ -100,11 +99,12 @@ int resocket(int oldfd, int domain, int type, int protocol) {
     if ( (oldfd = socket(domain, type, protocol)) < 0 )
         return -1;
 
-    if ( (fcntl(oldfd, F_SETFL, &fdflags)) < 0 ) {
+    if ( (fcntl(oldfd, F_SETFL, fdflags)) < 0 ) {
         close(oldfd);
         return -1;
     }
 
+//    printf("resocket OK\n");
     return oldfd;
 }
 
@@ -162,6 +162,8 @@ int reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum
     }
 
     *fd = sfd;
+
+    return 0;
 }
 
 void Reconnect_time(int *fd, const struct sockaddr *sa, socklen_t salen, int tnum, double msec) {
@@ -205,42 +207,23 @@ int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, d
     while ( tnum-- ) {
 
         if ( (stat = connect(fd, sa, salen)) < 0 ) {
-            if ( pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL) >= 0 )
+
+            if ( pselect(fd + 1, NULL, NULL, NULL, tmptr, NULL) >= 0 )
                 continue;
             else
                 goto func_end;
-        } else
-            goto func_end;
-
-    #if 0
-        printf("wait SELECT\n");
-
-        /* we are waiting until the socket is ready to write */
-        int status = pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL);
-        printf("out SELECT\n");
-
-        if ( status > 0 ) {
-            printf("ok SELECT\n");
-            if ( FD_ISSET(fd, &wrset) ) {
-                printf("isset ok \n");
-                Connect(fd, sa, salen);
-                return 0;
-            }
+        } else {
+            pselect(fd + 1, NULL, &wrset, NULL, NULL, NULL);
+            if ( FD_ISSET(fd, &wrset) )
+                goto func_end;
             else
                 continue;
         }
-        else if ( status == 0 )
-            continue;
-        else
-            return status;
-
-        #endif // 0
     }
-
 
 func_end:
 
-    if ( fcntl(fd, F_SETFL, fdflags) < 0)
+    if ( fcntl(fd, F_SETFL, fdflags) < 0 )
         return -1;
 
 
@@ -313,7 +296,7 @@ void Connect(int fd, const struct sockaddr *sa, socklen_t salen) {
             } else if (pslct_ret == 0)
                 printf("pselect() time out\n");
 
-                else
+            else
                 goto exit_err; /* pselect() returned ERROR */
 
         } else
@@ -390,28 +373,8 @@ ssize_t write_nopipe(int fd, const void *buf , size_t n) {
     sigset_t oldset, newset;
     ssize_t nwrite;
 
-
-//    sigemptyset(&newset);
-
     /* ignoring the SIGPIPE signal */
     signal(SIGPIPE, SIG_IGN);
-
-
-//    sigfillset(&newset);
-//    sigaddset(&newset, SIGPIPE);
-//    pthread_sigmask(SIG_BLOCK, &newset, &oldset);
-//    int st;
-//    sigprocmask(SIG_SETMASK, &newset, &oldset);
-//    newset = oldset;
-//    sigdelset(&newset, SIGPIPE);
-
-
-//    st = sigprocmask(SIG_SETMASK, &newset, &oldset);
-//    printf("STATUS :%d\n", st);
-//    struct timespec acpt_per = {1, 0};
-//        fd_set wrset;
-//    FD_ZERO(&wrset);
-//    FD_SET(fd, &wrset);
 
     if ( (nwrite = write(fd, buf, n)) >= 0 ) {
         int stat;
@@ -421,19 +384,12 @@ ssize_t write_nopipe(int fd, const void *buf , size_t n) {
          the server closed the socket through which the connection was going,
 
          we call write() again to check the assumption */
-//        if ( pselect(fd + 1, NULL, &wrset, NULL, &acpt_per, NULL) < 0 ) {
-//            printf("pselec EBADF: %d, error %d\n", EBADF, errno);
-//            return -1;
-//        }
         if ( (stat = write(fd, NULL, 0)) < 0)
             return (ssize_t)stat;
     }
 
-//    printf("writed\n");
     /* enabling SIGPIPE signal processing */
     signal(SIGPIPE, SIG_DFL);
-//    sigprocmask(SIG_SETMASK, &oldset,  &oldset);
-//    pthread_sigmask(SIG_SETMASK, &newset, &oldset);
 
     return nwrite;
 }
@@ -480,27 +436,35 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
     struct timespec acpt_per;
     struct timespec *tmptr = &acpt_per;
     fd_set rdset;
-
+    ssize_t nread;
     MSEC_TO_SPEC(msec, tmptr);
+    int fdflags;
 
     FD_ZERO(&rdset);
     FD_SET(fd, &rdset);
 
+    fdflags = fcntl(fd, F_GETFL, 0);
+    if ( fcntl(fd, F_SETFL, fdflags | O_NONBLOCK) < 0 )
+        return -1;
+
+
     while ( tnum-- ) {
 
-        /* we are waiting until the socket is ready to read */
-        int status = pselect(fd + 1, &rdset, NULL, NULL, tmptr, NULL);
+        if ( (nread = read(fd, buf, nbytes)) < 0 ) {
 
-        if ( status > 0 )
-            if ( FD_ISSET(fd, &rdset) )
-                return read(fd, buf, nbytes);
-            else
+            if ( pselect(fd + 1, &rdset, NULL, NULL, tmptr, NULL) >= 0 )
                 continue;
-        else if ( status == 0 )
-            continue;
-        else
-            status;
+            else
+                goto func_end;
+        } else
+            return nread;
     }
+
+
+func_end:
+
+    if ( fcntl(fd, F_SETFL, fdflags) < 0 )
+        return -1;
 
     return -1;
 }
@@ -524,26 +488,24 @@ ssize_t write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
     struct timespec acpt_per;
     struct timespec *tmptr = &acpt_per;
     fd_set wrset;
+    ssize_t nwrite;
 
     MSEC_TO_SPEC(msec, tmptr);
 
     FD_ZERO(&wrset);
     FD_SET(fd, &wrset);
 
+
     while ( tnum-- ) {
 
-        /* we are waiting until the socket is ready to write */
-        int status = pselect(fd + 1, NULL, &wrset, NULL, tmptr, NULL);
+        if ( (nwrite = write(fd, buf, n)) < 0 ) {
 
-        if ( status > 0 )
-            if ( FD_ISSET(fd, &wrset) )
-                return write(fd, buf, n);
-            else
+            if ( pselect(fd + 1, &wrset, NULL, NULL, tmptr, NULL) >= 0 )
                 continue;
-        else if ( status == 0 )
-            continue;
-        else
-            return status; /* -1 */
+            else
+                return -1;
+        } else
+            return nwrite;
     }
 
     return -1;
