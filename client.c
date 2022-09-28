@@ -35,7 +35,7 @@ void pipe_handler() {
 #define NOPIPE
 #define WRTIME
 
-void cli_str(int clifd) {
+void cli_str(int clifd, struct sockaddr *sa) {
 
     char buf[BUFSIZ];
 //
@@ -46,7 +46,7 @@ void cli_str(int clifd) {
         printf("buff: %s\n", buf);
         if (
 #ifdef NOPIPE
-        Write_nopipe
+        write_nopipe
 //#elif WRTIME
 //        Write_time
 #else
@@ -54,11 +54,14 @@ void cli_str(int clifd) {
 #endif // NOPIPE
         (clifd, buf, BUFSIZ) < 0 ) {
             if (errno == EPIPE)
-                printf("EPIP FIRST write\n");
+//                printf("EPIP FIRST write\n");
             fprintf(stderr, "error write %s\n", strerror(errno));
-            if ( connect_time(clifd, (struct sockaddr *)&servaddr,
-                    sizeof(servaddr), 3, 1000) < 0)
-            printf("error connect_time() %d\n", errno);
+            printf("reconnecting...\n");
+            Reconnect_time(&clifd, sa, sizeof(struct sockaddr), 10, 1000);
+            printf("reconnect succesfull\n");
+//            if ( connect_time(clifd, (struct sockaddr *)&servaddr,
+//                    sizeof(servaddr), 3, 1000) < 0)
+//            printf("error connect_time() %d\n", errno);
 
         } else {
             printf("send\n");
@@ -178,7 +181,7 @@ int main() {
 //
 //        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
 //    }
-    cli_str(confd);
+    cli_str(confd, (struct sockaddr *)&servaddr);
 
     close(confd);
 
