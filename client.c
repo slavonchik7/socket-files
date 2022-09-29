@@ -32,7 +32,7 @@ void pipe_handler() {
 
 }
 
-#define NOPIPE
+//#define NOPIPE
 #define WRTIME
 
 void cli_str(int clifd, struct sockaddr *sa) {
@@ -40,6 +40,8 @@ void cli_str(int clifd, struct sockaddr *sa) {
     char buf[BUFSIZ];
 //
 //    Sigact(SIGPIPE, pipe_handler);
+
+
 
     while ( fgets(buf, BUFSIZ, stdin) != NULL ) {
 
@@ -64,9 +66,11 @@ void cli_str(int clifd, struct sockaddr *sa) {
 //            printf("error connect_time() %d\n", errno);
 
         } else {
-            printf("send\n");
+
+            printf("send: \n");
         }
 
+        Read_time(clifd, buf, BUFSIZ, 5, 1000);
 //        if ( Write_time(clifd, buf, BUFSIZ, 3, 1000) < 0 ) {
 //            if (errno == EPIPE)
 //                printf("EPIP FIRST write\n");
@@ -135,20 +139,21 @@ int main() {
 
 
 #if 1
-    printf("%d\n", EFAULT);
-    printf("%d\n", EINPROGRESS);
-    printf("%d\n", EINTR);
-    printf("%d\n", ENETUNREACH);
-    printf("%d\n", EPROTOTYPE);
-    printf("%d\n", EACCES);
-    printf("%d\n", EADDRINUSE);
-    printf("%d\n", EADDRNOTAVAIL);
-    printf("%d\n", EPERM);
-    printf("%d\n", EAGAIN);
-    printf("%d\n", EISCONN);
-    printf("%d\n", ETIMEDOUT);
-    printf("%d\n", ECONNREFUSED);
-    printf("%d\n", EPIPE);
+    printf("EFAULT %d\n", EFAULT);
+    printf("EINPROGRESS %d\n", EINPROGRESS);
+    printf("EINTR %d\n", EINTR);
+    printf("ENETUNREACH %d\n", ENETUNREACH);
+    printf("EPROTOTYPE %d\n", EPROTOTYPE);
+    printf("EACCES %d\n", EACCES);
+    printf("EADDRINUSE %d\n", EADDRINUSE);
+    printf("EADDRNOTAVAIL %d\n", EADDRNOTAVAIL);
+    printf("EPERM %d\n", EPERM);
+    printf("EAGAIN %d\n", EAGAIN);
+    printf("EISCONN %d\n", EISCONN);
+    printf("ETIMEDOUT %d\n", ETIMEDOUT);
+    printf("ECONNREFUSED %d\n", ECONNREFUSED);
+    printf("EPIPE %d\n", EPIPE);
+    printf("EWOULDBLOCK %d\n", EWOULDBLOCK);
 #endif
 
 //    flags = fcntl(confd, F_GETFL, 0);
