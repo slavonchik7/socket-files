@@ -440,8 +440,7 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
     MSEC_TO_SPEC(msec, tmptr);
     int fdflags;
 
-    FD_ZERO(&rdset);
-    FD_SET(fd, &rdset);
+
 
     fdflags = fcntl(fd, F_GETFL, 0);
     if ( fcntl(fd, F_SETFL, fdflags | O_NONBLOCK) < 0 )
@@ -452,11 +451,21 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec) {
 
         if ( (nread = read(fd, buf, nbytes)) < 0 ) {
 
-            if ( pselect(fd + 1, &rdset, NULL, NULL, tmptr, NULL) >= 0 )
-                continue;
-            else
+            /* checking if an error has occurred, except EWOULDBLOCK
+             in the socket after waiting for pselect() */
+            if ( errno == EWOULDBLOCK ) {
+                FD_ZERO(&rdset);
+                FD_SET(fd, &rdset);
+
+                if ( pselect(fd + 1, &rdset, NULL, NULL, tmptr, NULL) >= 0 )
+                    continue;
+                else
+                    goto func_end;
+            } else
                 goto func_end;
+
         } else
+            /* tcp connection closed, FIN segment was received earlier */
             return nread;
     }
 
@@ -492,13 +501,14 @@ ssize_t write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
 
     MSEC_TO_SPEC(msec, tmptr);
 
-    FD_ZERO(&wrset);
-    FD_SET(fd, &wrset);
+
 
 
     while ( tnum-- ) {
 
         if ( (nwrite = write(fd, buf, n)) < 0 ) {
+            FD_ZERO(&wrset);
+            FD_SET(fd, &wrset);
 
             if ( pselect(fd + 1, &wrset, NULL, NULL, tmptr, NULL) >= 0 )
                 continue;
