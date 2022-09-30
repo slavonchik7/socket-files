@@ -23,6 +23,10 @@
 #define SERV_ADDR "127.0.0.1"
 #define SERV_PORT 2000
 
+    int confd;
+
+
+
     struct sockaddr_in servaddr;
 
 void pipe_handler() {
@@ -32,8 +36,22 @@ void pipe_handler() {
 
 }
 
-//#define NOPIPE
+#define NOPIPE
 #define WRTIME
+
+
+void exit_client() {
+//    sleep(5);
+
+    close(confd);
+    printf("close client!\n");
+    fflush(stdout);
+//    sleep(5);
+    exit(1);
+
+}
+
+
 
 void cli_str(int clifd, struct sockaddr *sa) {
 
@@ -70,7 +88,7 @@ void cli_str(int clifd, struct sockaddr *sa) {
             printf("send: \n");
         }
 
-        Read_time(clifd, buf, BUFSIZ, 5, 1000);
+//        Read_time(clifd, buf, BUFSIZ, 5, 1000);
 //        if ( Write_time(clifd, buf, BUFSIZ, 3, 1000) < 0 ) {
 //            if (errno == EPIPE)
 //                printf("EPIP FIRST write\n");
@@ -105,7 +123,7 @@ void cli_str(int clifd, struct sockaddr *sa) {
 
 int main() {
 
-    int confd;
+
 
 
     int optval;
@@ -118,24 +136,30 @@ int main() {
 //    fflush(stdout);
     confd = Socket(AF_INET, SOCK_STREAM, 0);
 
-    getsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen);
-    printf("SO_KEEPALIVE: %d\n", optval);
+    int keepval = 0;
+    optlen = sizeof(keepval);
+//    setsockopt(confd, SOL_SOCKET, SO_REUSEADDR, &keepval, optlen);
+    Getsockopt(confd, IPPROTO_IP, IP_TTL, &keepval, &optlen);
+    printf("ip_ttl: %d, sizeof: %d\n", keepval, optlen);
 
-    optval = 1;
-    /* first check tcp connect */
-    int keepval = 1;
-    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
-
-    /* second check tcp connect */
-    keepval = 1;
-    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
-
-    /* second check tcp connect */
-    keepval = 1;
-    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
-
-    setsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
-    printf("SO_KEEPALIVE: %d\n", optval);
+//    getsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, &optlen);
+//    printf("SO_KEEPALIVE: %d\n", optval);
+//
+//    optval = 1;
+//    /* first check tcp connect */
+//    int keepval = 1;
+//    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+//
+//    /* second check tcp connect */
+//    keepval = 1;
+//    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+//
+//    /* second check tcp connect */
+//    keepval = 1;
+//    setsockopt(confd, SOL_TCP, TCP_KEEPCNT, &keepval, optlen);
+//
+//    setsockopt(confd, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
+//    printf("SO_KEEPALIVE: %d\n", optval);
 
 
 #if 1
@@ -175,7 +199,43 @@ int main() {
     servaddr.sin_port = htons(SERV_PORT);
     inet_pton(AF_INET, SERV_ADDR, &servaddr.sin_addr);
 
-    Connect(confd, (struct sockaddr *)&servaddr, skl);
+
+    if ( getsockopt(confd, IPPROTO_TCP, SO_RCVBUF, &keepval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_RCVBUF: %d\n", keepval);
+        optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, SO_SNDBUF, &keepval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_SNDBUF: %d\n", keepval);
+        optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, TCP_MAXSEG, &keepval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_MAXSEG: %d\n", keepval);
+
+
+
+    Connect(confd, (struct sockaddr *)&servaddr, sizeof(struct sockaddr));
+
+        Sigact(SIGINT, exit_client);
+
+optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, SO_RCVBUF, &optval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_RCVBUF: %d\n", optval);
+        optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, SO_SNDBUF, &keepval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_SNDBUF: %d\n", keepval);
+        optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, TCP_MAXSEG, &optval, &skl) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_MAXSEG: %d\n", optval);
 
 //    if ( connect(confd, (struct sockaddr *)&servaddr, skl) < 0 ) {
 //

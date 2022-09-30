@@ -17,7 +17,7 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <sys/types.h>
-
+#include <netinet/tcp.h>
 
 #include "../wrap_fork.h"
 #include "signal.h"
@@ -44,10 +44,23 @@ void sig_chld(int sign) {
     return;
 }
 
+
+int listenfd, confd;
+
+void exit_listen() {
+
+    close(listenfd);
+    close(confd);
+    printf("close server!\n");
+    fflush(stdout);
+    exit(1);
+
+}
+
 int main1() {
 
 
-    int listenfd, confd;
+
     pid_t chldpid;
     struct sockaddr_in  cliaddr, servaddr;
     int optval;
@@ -75,6 +88,7 @@ int main1() {
 
 
     Sigact(SIGCHLD, sig_chld);
+    Sigact(SIGINT, exit_listen);
 
     Listen(listenfd, 1);
 
@@ -83,8 +97,28 @@ int main1() {
     printf("wake up...\n");
 
 
+    int keepval = 0;
+    int optlen = sizeof(keepval);
+    if ( getsockopt(listenfd, IPPROTO_TCP, SO_RCVBUF, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_RCVBUF: %d\n", optval);
+    optlen = sizeof(keepval);
+    if ( getsockopt(listenfd, IPPROTO_TCP, SO_SNDBUF, &keepval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_SNDBUF: %d\n", keepval);
+optlen = sizeof(keepval);
+    if ( getsockopt(listenfd, IPPROTO_TCP, TCP_MAXSEG, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_MAXSEG: %d\n", optval);
 
-
+optlen = sizeof(keepval);
+    if ( getsockopt(listenfd, IPPROTO_TCP, TCP_SYNCNT, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_SYNCNT: %d\n", optval);
 //    for(int  i = 0; i < 5; i++) {
 //        pid_t p_id;
 //        if ( (p_id = fork()) == 0 ) {
@@ -104,13 +138,38 @@ int main1() {
         skl = sizeof(cliaddr);
 
         //confd = Accept(listenfd, (struct sockaddr *)&servaddr, &skl);
+    printf("\n\n");
+    system("netstat -p -t");
+    printf("\n\n");
         if ( (confd = accept(listenfd, (struct sockaddr *)&servaddr, &skl)) < 0 ) {
             if ( errno == EINTR )
                 continue;
             else
                 EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
         }
-
+    printf("\n\n");
+    system("netstat -p -t");
+    printf("\n\n");
+    optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, SO_RCVBUF, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_RCVBUF: %d\n", optval);
+    optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, SO_SNDBUF, &keepval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt SO_SNDBUF: %d\n", keepval);
+optlen = sizeof(keepval);
+    if ( getsockopt(confd, IPPROTO_TCP, TCP_MAXSEG, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_MAXSEG: %d\n", optval);
+optlen = sizeof(keepval);
+    if ( getsockopt(listenfd, IPPROTO_TCP, TCP_SYNCNT, &optval, &optlen) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+    else
+        printf("sock opt TCP_SYNCNT: %d\n", optval);
         PROC_CHILD(chldpid)
             close(listenfd);
             printf("recieve client...\n");
@@ -131,7 +190,7 @@ int main1() {
 
 //    printf("msg: %s\n", buff);
 
-    close(confd);
+//    close(confd);
     close(listenfd);
 
 //        if ( getsockopt(confd, SOL_SOCKET, SO_ERROR, &optval, &skl) < 0 )
