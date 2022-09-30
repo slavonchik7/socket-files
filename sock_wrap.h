@@ -48,7 +48,6 @@ int resocket(int oldfd, int domain, int type, int protocol);
 
 int Resocket(int oldfd, int domain, int type, int protocol);
 
-
 int Socket(int domain, int type, int protocol);
 
 void Listen(int fd, int backlog);
@@ -58,7 +57,6 @@ void Setsockopt(int fd, int level, int optname, const void *optval, socklen_t op
 void Getsockopt(int fd, int level, int optname, void *optval, socklen_t *optlenptr);
 
 ssize_t Recv(int fd, void *ptr, size_t nbytes, int flags);
-
 
 void Shutdown(int socket, int how);
 
@@ -78,8 +76,13 @@ ssize_t read_time(int fd, void *buf , size_t nbytes, int tnum, double msec);
 
 ssize_t Read_time(int fd, void *buf , size_t nbytes, int tnum, double msec);
 
+int fcntl_setfl(int fd, int flgs);
 
+void Fcntl_setfl(int fd, int flgs);
 
+int fcntl_unsetfl(int fd, int flgs);
+
+void Fcntl_unsetfl(int fd, int flgs);
 
 
 #endif /* SOCK_WRAP_H */

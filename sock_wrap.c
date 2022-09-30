@@ -207,7 +207,7 @@ int connect_time(int fd, const struct sockaddr *sa, socklen_t salen, int tnum, d
     while ( tnum-- ) {
 
         if ( (stat = connect(fd, sa, salen)) < 0 ) {
-
+            printf(" < 0\n");
             if ( pselect(fd + 1, NULL, NULL, NULL, tmptr, NULL) >= 0 )
                 continue;
             else
@@ -304,8 +304,11 @@ void Connect(int fd, const struct sockaddr *sa, socklen_t salen) {
             so it will not be possible to establish a connection */
             goto exit_err;
 
-    } else
+    } else {
+//        sleep(5);
+//        printf("connect OK!\n");
         return; /* connect() is OK */
+    }
 
 exit_err:
     EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
@@ -535,3 +538,41 @@ ssize_t Write_time(int fd, const void *buf , size_t n, int tnum, double msec) {
     return nwrite;
 }
 
+
+int fcntl_setfl(int fd, int flgs) {
+
+	int flags;
+
+	if ( (flags = fcntl(fd, F_GETFL, 0)) < 0 )
+        return -1;
+
+	return fcntl(fd, F_SETFL, (flags | flgs) );
+}
+
+void Fcntl_setfl(int fd, int flgs) {
+
+    assert(fd >= 0);
+
+    if ( fcntl_setfl(fd, flgs) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+}
+
+
+int fcntl_unsetfl(int fd, int flgs) {
+
+	int flags;
+
+	if ( (flags = fcntl(fd, F_GETFL, 0)) < 0 )
+        return -1;
+
+	return fcntl(fd, F_SETFL, (flags & (~flgs)) );
+}
+
+
+void Fcntl_unsetfl(int fd, int flgs) {
+
+    assert(fd >= 0);
+
+    if ( fcntl_unsetfl(fd, flgs) < 0 )
+        EXIT_WITH_LOG_ERROR(NULL, NULL, strerror(errno), errno);
+}
